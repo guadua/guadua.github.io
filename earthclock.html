@@ -1,0 +1,125 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script src="https://unpkg.com/three@0.140.2/build/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/7/Stats.min.js" integrity="sha512-ey3wf3z1WUgQ6/XU/lV1UVQkbCpWsyQANkBst88XXWHok9fXKp55G365lLhScYihGpkzhiZz75r+8isUSCKRIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+      // ページの読み込みを待つ
+      window.addEventListener('DOMContentLoaded', init);
+      function init() {
+        const stats = new Stats();
+        document.body.appendChild(stats.domElement);
+        // サイズを指定
+        // const width = 1080;
+        // const height = 720;
+        const width = 1200;
+        const height = 800;
+
+        // レンダラーを作成
+        const renderer = new THREE.WebGLRenderer({
+          canvas: document.querySelector('#myCanvas'),
+        });
+        renderer.setSize(width, height);
+
+        // シーンを作成
+        const scene = new THREE.Scene();
+
+        // カメラを作成
+        const camera = new THREE.PerspectiveCamera(45, width / height);
+        // camera.position.set(0, 0, +1000);
+        camera.position.set(0, +1000, 0);
+        camera.lookAt(new THREE.Vector3(0,0,0));
+
+        // 太陽方向;
+        const points = [];
+        points.push(new THREE.Vector3(0, 500, 0));
+        points.push(new THREE.Vector3(width/2, 500, 0)); // sun
+        const solar = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(points),
+          new THREE.LineBasicMaterial({color: 0x0000ff})
+        );
+        const points1 = [];
+        points1.push(new THREE.Vector3(-150, 500, 0));
+        points1.push(new THREE.Vector3(width/2, 500, 0)); //moon
+        const lunar = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(points1),
+          new THREE.LineBasicMaterial({color: 0x0000aa})
+        );
+
+        // 球体を作成
+        const geometry = new THREE.SphereGeometry(300, 24, 24);
+        // const wireframe = new THREE.WireframeGeometry(geometry, 0x00ff00);
+        // const line = new THREE.LineSegments(wireframe);
+
+        // 画像を読み込む
+        const loader = new THREE.TextureLoader();
+        const texture = loader.load('imgs/earthmap1k.jpg');
+        // マテリアルにテクスチャーを設定
+        const material = new THREE.MeshStandardMaterial({
+          map: texture,
+          // transparent: true,
+          transparent: false,
+          opacity: 0.5
+        });
+        // メッシュを作成
+        const mesh = new THREE.Mesh(geometry, material);
+        // 3D空間にメッシュを追加
+        scene.add(mesh);
+        scene.add(solar);
+        scene.add(lunar);
+
+        // 平行光源
+        const directionalLight = new THREE.DirectionalLight(0xffffff);
+        directionalLight.position.set(1, 0, 0);
+        //directionalLight.position.set(0, 1, 0);
+        // シーンに追加
+        scene.add(directionalLight);
+
+        tick();
+
+        // 毎フレーム時に実行されるループイベントです
+        function tick() {
+          var frame = parseInt( document.getElementById('frame').textContent);
+          var year = parseFloat( document.getElementById('year').textContent);
+          var month = parseFloat(document.getElementById('month').textContent);
+          var fps = parseInt( document.getElementById('fps').value);
+          frame += 1;
+          mesh.rotation.y = Math.PI * 2 * (frame / fps / 60);
+          solar.rotation.y = Math.PI * 2 * (frame / fps / 60/year);
+
+          // solar motion
+          var sin = Math.sin(Math.PI * 2 * frame/fps/60/year);
+          var cos = Math.cos(Math.PI * 2 * frame/fps/60/year);
+          directionalLight.position.set(cos, sin*Math.sin(Math.PI * 2 * 23.4 / 360), -sin);
+          mesh.position.y = -sin * 300; // approaching to celestial north pole
+
+          // lunar motion
+          mesh.position.x = -Math.cos(Math.PI * frame/fps/60/year * month) * 225;
+          mesh.position.z = Math.sin(Math.PI * frame/fps/60/year * month) * 225;
+          lunar.rotation.y = Math.PI * (frame/ fps/ 60 / year * month);
+          document.getElementById('frame').textContent = frame;
+          document.getElementById('day').textContent = (frame / fps / 60);
+          document.getElementById('fpsd').textContent = '60/' + fps;
+          document.getElementById('sin').textContent = sin;
+          document.getElementById('cos').textContent = cos;
+          // レンダリング
+          renderer.render(scene, camera);
+
+          requestAnimationFrame(tick);
+          stats.update();
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="myCanvas"></canvas>
+    <br/>
+    sidereal year: <span id="year">366.2422</span>
+    sidereal month: <span id="month">27.321</span>
+    fps: <input id="fps" type="range" min="1" max="24" value="1"><span id="fpsd"></span>
+    frame: <span id="frame">0</span>
+    day: <span id="day"></span><br/>
+    sin(theta): <span id="sin">0</span><br/>
+    cos(theta): <span id="cos">0</span>
+  </body>
+</html>
