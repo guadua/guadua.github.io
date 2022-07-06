@@ -3,10 +3,100 @@
     <meta charset="utf-8" />
     <script src="https://unpkg.com/three@0.140.2/build/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/7/Stats.min.js" integrity="sha512-ey3wf3z1WUgQ6/XU/lV1UVQkbCpWsyQANkBst88XXWHok9fXKp55G365lLhScYihGpkzhiZz75r+8isUSCKRIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
       // ページの読み込みを待つ
       window.addEventListener('DOMContentLoaded', init);
+
+      var cityArray = []; // for cache
+
+      function plotCities(scene, radius, cities, playspeed, theta0, rpf, frame, earth, solar){
+        // remove first
+        for (let key in cityArray){
+          scene.remove(scene.getObjectByName(cityArray[key]));
+        }
+
+        let lon = ((theta0 - (rpf * frame)) / Math.PI / 2 * 360) % 360;
+        if (lon < -180){
+          lon = lon + 360;
+        }
+        var result = {};
+        cities.then(function(data){
+
+          result = data.filter(function(row){
+            if (playspeed < 600){
+              return row.lng >= lon && row.lng < lon + 15/3600 * playspeed;
+            } else {
+              return row.lng >= lon && row.lng < lon + 15/3600 * 600;
+            }
+            // return row.city == 'Tokyo';
+          });
+
+          result.sort(function(a, b) {
+            return a.lat > b.lat ? -1 : 1;
+            return 0;
+          });
+
+          if (result.length > 0){
+            let ul = document.getElementById('cities');
+            ul.innerHTML = '';
+            cityArray = [];
+
+            //console.log(lon, result.length);
+            for (let key in result){
+              var nadir = [];
+              var x = radius * (Math.cos(Math.PI * 2 * result[key].lat/360)); // to the sun
+              var y = radius * Math.sin(Math.PI * 2 * result[key].lat/360); // to the pole
+              nadir.push(new THREE.Vector3(x, y, 0));
+              nadir.push(new THREE.Vector3(x*1.01, y*1.01, 0));
+              const city = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints(nadir),
+                new THREE.LineBasicMaterial({color: 0xff0000})
+              );
+              city.name = result[key].city;
+              city.rotation.y = (Math.PI * 2 * result[key].lng/360) + earth.rotation.y + solar.rotation.y;
+              city.position.x = earth.position.x;
+              city.position.y = earth.position.y;
+              city.position.z = earth.position.z;
+              city.geometry.attributes.position.needsUpdate = true;
+              scene.add(city);
+
+              cityArray.push(city.name);
+            }
+            for (let key in result) {
+              let li = document.createElement('li');
+              let a = document.createElement('a');
+              a.setAttribute('href', 'https://en.wikipedia.org/wiki/' + result[key].city);
+              a.setAttribute('target', '_blank');
+              a.appendChild(document.createTextNode(result[key].city));
+              let emoji = getFlagEmoji(result[key].iso2);
+              li.appendChild(document.createTextNode(emoji));
+              li.appendChild(a);
+              ul.appendChild(li);
+            }
+          }
+        })
+      };
+
       function init() {
+        const date = new Date();
+        const unixtime = date.getTime() / 1000;
+        const initialSecond = unixtime % 86400;
+        const hour0 = (initialSecond / 3600).toFixed(0);
+        // const theta0 = initialSecond / 86400 * 2 * Math.PI;
+        const theta0 = 0;
+        console.log(unixtime, initialSecond, hour0, theta0);
+
+        const cities = d3.csv('worldcities.csv', function(d){
+          return {
+            id: parseInt(d.id),
+            city: d.city,
+            iso2: d.iso2,
+            lng: parseFloat(d.lng),
+            lat: parseFloat(d.lat)
+          }
+        })
+
         const stats = new Stats();
         document.body.appendChild(stats.domElement);
         // サイズを指定
@@ -28,8 +118,8 @@
         // カメラを作成
         const camera = new THREE.PerspectiveCamera(30, width / height, 500, 3000);
         // camera.position.set(0, 0, +1000);
-        var isNorth = parseInt(document.getElementById('perspective').value);
-        camera.position.set(0, isNorth * 1000, 0);
+        var perspectiveParams = parseInt(document.getElementById('perspective').value);
+        camera.position.set(0, perspectiveParams * 1000, 0);
         camera.lookAt(new THREE.Vector3(0,0,0));
 
         // 太陽方向;
@@ -45,7 +135,7 @@
         points1.push(new THREE.Vector3(width*5, 0, 0)); //moon
         const lunar = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints(points1),
-          new THREE.LineBasicMaterial({color: 0x0000aa})
+          new THREE.LineBasicMaterial({color: 0x00ff00})
         );
 
         // 球体を作成
@@ -60,8 +150,8 @@
         const material = new THREE.MeshStandardMaterial({
           map: texture,
           // transparent: true,
-          transparent: false,
-          opacity: 0.5
+          // opacity: 0.5,
+          transparent: false
         });
         // メッシュを作成
         const earth = new THREE.Mesh(geometry, material);
@@ -77,10 +167,28 @@
         // シーンに追加
         scene.add(directionalLight);
 
+
         tick();
 
         // 毎フレーム時に実行されるループイベントです
         function tick() {
+          // length of sidereal year, sidereal month
+          var loy = parseFloat( document.getElementById('loy').textContent);
+          var lom = parseFloat(document.getElementById('lom').textContent);
+
+          // radian per frame
+          document.getElementById('current').textContent = theta0;
+          var frame = parseInt( document.getElementById('frame').textContent);
+          var playspeed = parseFloat( document.getElementById('playspeed').value);
+          frame += parseInt(document.getElementById('control').value);
+
+          const radianPerSecond = 2 * Math.PI / 86400 * (loy + 1) / loy; // earth
+          const radianPerSecond1 = radianPerSecond / loy; // solar
+          const radianPerSecond2 = (radianPerSecond1 * lom * 86400 + 2 * Math.PI) / lom / 86400 // moon
+          var rpf = radianPerSecond / 60 * playspeed;
+          var rpf2 = radianPerSecond2/ 60 * playspeed;
+
+          // camera
           var fov = parseInt(document.getElementById('fov').value);
           var near = parseInt(document.getElementById('near').value);
           var far = parseInt(document.getElementById('far').value);
@@ -88,36 +196,40 @@
           camera.near = near;
           camera.far = far;
           camera.updateProjectionMatrix();
-          isNorth = parseInt(document.getElementById('perspective').value);
           distance = parseInt(document.getElementById('camera').value);
-          camera.position.set(0, isNorth * distance, 0);
+          var perspectiveParams = document.getElementById('perspective').value.split(',').map(Number);
+          camera.position.set(perspectiveParams[0]*distance, perspectiveParams[1]*distance, perspectiveParams[2]*distance);
           camera.lookAt(new THREE.Vector3(0,0,0));
 
-          var frame = parseInt( document.getElementById('frame').textContent);
-          var loy = parseFloat( document.getElementById('loy').textContent);
-          var lom = parseFloat(document.getElementById('lom').textContent);
-          var fps = parseFloat( document.getElementById('fps').value);
-          frame += 1;
-          earth.rotation.y = Math.PI * 2 * (frame / fps / 60);
-          solar.rotation.y = Math.PI * 2 * (frame / fps / 60/loy);
-
-          // solar motion
-          var sin = Math.sin(Math.PI * 2 * frame/fps/60/loy);
-          var cos = Math.cos(Math.PI * 2 * frame/fps/60/loy);
-          directionalLight.position.set(cos, sin*Math.sin(Math.PI * 2 * 23.4 / 360), -sin);
-          earth.position.y = -sin * 300; // approaching to celestial north pole
-
-          // lunar motion
+          // scale the size of the earth
           radius = parseInt(document.getElementById('radius').value);
           var scale = radius / 300;
           earth.scale.setScalar(scale);
-          earth.position.x = -Math.cos(Math.PI * frame/fps/60/loy * lom) * 225;
-          earth.position.z = Math.sin(Math.PI * frame/fps/60/loy * lom) * 225;
-          lunar.rotation.y = Math.PI * (frame/ fps/ 60 / loy * lom);
+
+          // based on frame
+          earth.rotation.y = frame * rpf;
+
+          // solar motion
+          solar.rotation.y = frame * rpf / (loy + 1);
+          var sin = Math.sin(solar.rotation.y);
+          var cos = Math.cos(solar.rotation.y);
+          directionalLight.position.set(cos, sin*Math.sin(Math.PI * 2 * 23.4 / 360), -sin);
+          earth.position.y = -sin * radius; // approaching to celestial north pole
+
+          // lunar motion
+          earth.position.x = -Math.cos(rpf2 * frame) * radius * .75;
+          earth.position.z = Math.sin(rpf2 * frame) * radius * .75;
+          lunar.rotation.y = rpf2 * frame;
+
+          // plot cities
+          if (frame % 60 == 0){
+            plotCities(scene, radius, cities, playspeed, theta0, rpf, frame, earth, solar);
+          };
+
           document.getElementById('frame').textContent = frame;
-          document.getElementById('solarday').textContent = dms(frame, fps, 'year');
-          document.getElementById('lunarday').textContent = dms(frame, fps, 'month');
-          document.getElementById('fpsd').textContent = '60/' + fps;
+          document.getElementById('solarday').textContent = dms(frame, playspeed, 'year');
+          document.getElementById('lunarday').textContent = dms(frame, playspeed, 'month');
+          document.getElementById('fpsd').textContent = '60/' + playspeed;
           document.getElementById('sin').textContent = sin;
           document.getElementById('cos').textContent = cos;
           // レンダリング
@@ -132,10 +244,10 @@
         // unit should be year or month
         var d, subunit;
         if (unit == 'year') {
-          d = 366.2422;
+          d = 365.2422;
           subunit = 'season';
         } else if (unit == 'month'){
-          d = 27.321;
+          d = 29.53059;
           subunit = 'week';
         }
         let remainderSeconds = s % (86400 * (d / 4));
@@ -145,8 +257,8 @@
         return {division, remainder1, subunit, remainderSeconds}
       }
 
-      function dms(frame, fps, unit){
-        var s = frame / fps / 60 * 86400; // total seconds
+      function dms(frame, playspeed, unit){
+        var s = frame * playspeed / 60; // total seconds
         var {division, remainder1, subunit, remainderSeconds} = divideBy(s, unit);
 
         remainder = remainderSeconds % 86400;
@@ -157,11 +269,35 @@
         let minute = (remainderSeconds - day*86400 - hour*3600 - second) / 60;
         return division.toFixed(0) + ' ' + unit + ' ' + remainder1.toFixed(0) + ' ' + subunit + ' ' + day.toFixed(0)+' day '+hour.toFixed(0)+':'+minute.toFixed(0)+':'+second.toFixed(2) + ' (' + s.toFixed(2) + ' seconds)'
       }
+
+      function updateframe(){
+        const playspeed = parseInt(document.getElementById('playspeed').value);
+        document.getElementById('frame').textContent = (parseInt(document.getElementById('secondinput').value) * 60 / playspeed).toFixed(0);
+      }
+
+      function getFlagEmoji(countryCode) {
+        const codePoints = countryCode
+          .toUpperCase()
+          .split('')
+          .map(char =>  127397 + char.charCodeAt());
+        return String.fromCodePoint(...codePoints);
+      }
     </script>
   </head>
   <body>
     <canvas id="myCanvas"></canvas>
+    <div style="position: fixed; top:20; right:20; width:200px">
+      <ul id="cities"></ul>
+    </div>
     <div id="panel" style="position:fixed; top:20; left:20; color:silver;">
+      <span id="current"></span>
+      <label for="control">control</label>
+      <select id="control">
+        <option value="1" selected>></option>
+        <option value="0">stop</option>
+        <option value="-1"><</option>
+      </select>
+      frame: <span id="frame">0</span> <input id="secondinput" type="text" oninput="updateframe()"><br/>
       <label for="fov">fov: </label>
       <select id="fov">
         <option value="30">30</option>
@@ -180,21 +316,31 @@
         <option value="2000">2000</option>
         <option value="2500">2500</option>
         <option value="3000" selected>3000</option>
+        <option value="3500">3500</option>
+        <option value="4000">4000</option>
+        <option value="4500">4500</option>
+        <option value="5000">5000</option>
       </select>
       <label for="camera">camara distance</label>
       <select id="camera">
-        <option value="1000" selected>1000</option>
+        <option value="1000">1000</option>
         <option value="1500">1500</option>
         <option value="2000">2000</option>
         <option value="2500">2500</option>
+        <option value="3000" selected>3000</option>
+        <option value="3500">3500</option>
+        <option value="4000">4000</option>
       </select><br/>
-      frame: <span id="frame">0</span><br/>
       <span id="solarday"></span><br/>
       <span id="lunarday"></span><br/>
       <label for="perspective">perspective</label>
       <select id="perspective">
-        <option value="1" selected>North</option>
-        <option value="-1">South</option>
+        <option value="0,1,0" selected>North</option>
+        <option value="0,-1,0">South</option>
+        <option value="1,0,0">Libra</option>
+        <option value="-1,0,0">Aries</option>
+        <option value="0,0,1">Scorpion</option>
+        <option value="0,0,-1">Orion</option>
       </select><br/>
       <label for="radius">radius</label>
       <select id="radius">
@@ -204,26 +350,26 @@
         <option value="500">500</option>
       </select><br/>
       sidereal year: <span id="loy">366.2422</span><br/>
-      sidereal month: <span id="lom">27.321</span><br/>
-      fps:
-      <select id="fps">
-        <option value="86400" selected>x1</option>
-        <option value="43200">x2</option>
-        <option value="14400">x6</option>
-        <option value="2880">x30</option>
-        <option value="1440">1 min/sec (x60)</option>
-        <option value="144">10 min/sec (x600)</option>
-        <option value="24">1 hour/sec (x3600)</option>
-        <option value="4">6 hours/sec (x14400)</option>
-        <option value="1">1 day/sec (x86400)</option>
-        <option value="0.146407">1 week /sec (x590133)</option>
-        <option value="0.1">10 days/sec (x864000)</option>
-        <option value="0.03660188">1 month /sec (x2360534)</option>
-        <option value="0.002730433">1 year /sec (x31643326)</option>
+      synodic month: <span id="lom">29.53059</span><br/>
+      playspeed:
+      <select id="playspeed">
+        <option value="1" >x1</option>
+        <option value="2">x2</option>
+        <option value="6">x6</option>
+        <option value="30" selected>x30</option>
+        <option value="60">1 min/sec (x60)</option>
+        <option value="600">10 min/sec (x600)</option>
+        <option value="3600">1 hour/sec (x3600)</option>
+        <option value="14400">6 hours/sec (x14400)</option>
+        <option value="86400">1 day/sec (x86400)</option>
+        <option value="590133">1 week /sec (x590133)</option>
+        <option value="864000">10 days/sec (x864000)</option>
+        <option value="2360534">1 month /sec (x2360534)</option>
+        <option value="31643326">1 year /sec (x31643326)</option>
       </select>
       <span id="fpsd"></span><br/>
       sin(theta): <span id="sin">0</span><br/>
       cos(theta): <span id="cos">0</span><br/>
-  </div>
-</body>
+    </div>
+  </body>
 </html>
