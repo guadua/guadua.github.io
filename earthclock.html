@@ -9,83 +9,16 @@
       window.addEventListener('DOMContentLoaded', init);
 
       var cityArray = []; // for cache
-
-      function plotCities(scene, radius, cities, playspeed, theta0, rpf, frame, earth, solar){
-        // remove first
-        for (let key in cityArray){
-          scene.remove(scene.getObjectByName(cityArray[key]));
-        }
-
-        let lon = ((theta0 - (rpf * frame)) / Math.PI / 2 * 360) % 360;
-        if (lon < -180){
-          lon = lon + 360;
-        }
-        var result = {};
-        cities.then(function(data){
-
-          result = data.filter(function(row){
-            if (playspeed < 600){
-              return row.lng >= lon && row.lng < lon + 15/3600 * playspeed;
-            } else {
-              return row.lng >= lon && row.lng < lon + 15/3600 * 600;
-            }
-            // return row.city == 'Tokyo';
-          });
-
-          result.sort(function(a, b) {
-            return a.lat > b.lat ? -1 : 1;
-            return 0;
-          });
-
-          if (result.length > 0){
-            let ul = document.getElementById('cities');
-            ul.innerHTML = '';
-            cityArray = [];
-
-            //console.log(lon, result.length);
-            for (let key in result){
-              var nadir = [];
-              var x = radius * (Math.cos(Math.PI * 2 * result[key].lat/360)); // to the sun
-              var y = radius * Math.sin(Math.PI * 2 * result[key].lat/360); // to the pole
-              nadir.push(new THREE.Vector3(x, y, 0));
-              nadir.push(new THREE.Vector3(x*1.01, y*1.01, 0));
-              const city = new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints(nadir),
-                new THREE.LineBasicMaterial({color: 0xff0000})
-              );
-              city.name = result[key].city;
-              city.rotation.y = (Math.PI * 2 * result[key].lng/360) + earth.rotation.y + solar.rotation.y;
-              city.position.x = earth.position.x;
-              city.position.y = earth.position.y;
-              city.position.z = earth.position.z;
-              city.geometry.attributes.position.needsUpdate = true;
-              scene.add(city);
-
-              cityArray.push(city.name);
-            }
-            for (let key in result) {
-              let li = document.createElement('li');
-              let a = document.createElement('a');
-              a.setAttribute('href', 'https://en.wikipedia.org/wiki/' + result[key].city);
-              a.setAttribute('target', '_blank');
-              a.appendChild(document.createTextNode(result[key].city));
-              let emoji = getFlagEmoji(result[key].iso2);
-              li.appendChild(document.createTextNode(emoji));
-              li.appendChild(a);
-              ul.appendChild(li);
-            }
-          }
-        })
-      };
+      var t0 = 0; // time when opened the
+      var dt = 0; // used in calcDate
+      var unixtime = 0;
+      var now = 0;
+      var loy, lom;
+      var yourcity = {city: 'Kobe', iso2:'JP', lng:135, lat:35};
+      var noon;
 
       function init() {
-        const date = new Date();
-        const unixtime = date.getTime() / 1000;
-        const initialSecond = unixtime % 86400;
-        const hour0 = (initialSecond / 3600).toFixed(0);
-        // const theta0 = initialSecond / 86400 * 2 * Math.PI;
-        const theta0 = 0;
-        console.log(unixtime, initialSecond, hour0, theta0);
+        t0 = new Date().getTime() / 1000;
 
         const cities = d3.csv('worldcities.csv', function(d){
           return {
@@ -172,21 +105,31 @@
 
         // 毎フレーム時に実行されるループイベントです
         function tick() {
+          const theta0 = hms2rad('15:32:00') - Math.PI;
+          // console.log(theta0e;
+          const equinox = new Date('2022-03-22 00:32:00').getTime()/ 1000; // 15:32:00
+          unixtime = new Date().getTime() / 1000;
+          if (document.getElementById('epoch').value == 'equinox'){
+            now = unixtime - t0 + dt;
+          } else if (document.getElementById('epoch').value == 'now'){
+            now = unixtime - equinox + dt;
+          }
+          document.getElementById('current').textContent = now.toFixed(2);
+
           // length of sidereal year, sidereal month
-          var loy = parseFloat( document.getElementById('loy').textContent);
-          var lom = parseFloat(document.getElementById('lom').textContent);
+          loy = parseFloat( document.getElementById('loy').textContent);
+          lom = parseFloat(document.getElementById('lom').textContent);
 
           // radian per frame
-          document.getElementById('current').textContent = theta0;
-          var frame = parseInt( document.getElementById('frame').textContent);
           var playspeed = parseFloat( document.getElementById('playspeed').value);
-          frame += parseInt(document.getElementById('control').value);
+          dt += (playspeed - 1)/60;
+          var frame = (now * 60 * playspeed).toFixed(0);
+          // var frame = parseInt( document.getElementById('frame').textContent);
+          // frame += parseInt(document.getElementById('control').value);
 
           const radianPerSecond = 2 * Math.PI / 86400 * (loy + 1) / loy; // earth
           const radianPerSecond1 = radianPerSecond / loy; // solar
           const radianPerSecond2 = (radianPerSecond1 * lom * 86400 + 2 * Math.PI) / lom / 86400 // moon
-          var rpf = radianPerSecond / 60 * playspeed;
-          var rpf2 = radianPerSecond2/ 60 * playspeed;
 
           // camera
           var fov = parseInt(document.getElementById('fov').value);
@@ -206,29 +149,45 @@
           var scale = radius / 300;
           earth.scale.setScalar(scale);
 
-          // based on frame
-          earth.rotation.y = frame * rpf;
+          // based on second
+          earth.rotation.y = now * radianPerSecond + theta0;
 
           // solar motion
-          solar.rotation.y = frame * rpf / (loy + 1);
+          solar.rotation.y = now * radianPerSecond1;
           var sin = Math.sin(solar.rotation.y);
           var cos = Math.cos(solar.rotation.y);
           directionalLight.position.set(cos, sin*Math.sin(Math.PI * 2 * 23.4 / 360), -sin);
           earth.position.y = -sin * radius; // approaching to celestial north pole
 
           // lunar motion
-          earth.position.x = -Math.cos(rpf2 * frame) * radius * .75;
-          earth.position.z = Math.sin(rpf2 * frame) * radius * .75;
-          lunar.rotation.y = rpf2 * frame;
+          earth.position.x = -Math.cos(radianPerSecond2 * now) * radius * .75;
+          earth.position.z = Math.sin(radianPerSecond2 * now) * radius * .75;
+          lunar.rotation.y = radianPerSecond2 * now;
+
+          // longitude at noon
+          noon = ((-earth.rotation.y + solar.rotation.y) / Math.PI / 2 * 360) % 360;
+          if (noon < -180){
+            noon = noon + 360;
+          } else if (noon > 180) {
+            noon = noon - 360;
+          }
+
+          var localtime = (noon - yourcity.lng);
+          if (localtime < -180) {
+            localtime = localtime + 360;
+          } else if (localtime > 180) {
+            localtime = localtime - 360;
+          }
+          document.getElementById('noon').textContent = (localtime).toFixed(4);
 
           // plot cities
-          if (frame % 60 == 0){
-            plotCities(scene, radius, cities, playspeed, theta0, rpf, frame, earth, solar);
+          if ((now % 1).toFixed(1) == 0){
+            plotCities(scene, radius, cities, playspeed, now, theta0, earth, solar);
           };
 
           document.getElementById('frame').textContent = frame;
-          document.getElementById('solarday').textContent = dms(frame, playspeed, 'year');
-          document.getElementById('lunarday').textContent = dms(frame, playspeed, 'month');
+          document.getElementById('solarday').textContent = dms(now, playspeed, 'year');
+          document.getElementById('lunarday').textContent = dms(now, playspeed, 'month');
           document.getElementById('fpsd').textContent = '60/' + playspeed;
           document.getElementById('sin').textContent = sin;
           document.getElementById('cos').textContent = cos;
@@ -240,14 +199,97 @@
         }
       }
 
+      function plotCities(scene, radius, cities, playspeed, now, theta0, earth, solar){
+        // remove first
+        for (let key in cityArray){
+          scene.remove(scene.getObjectByName(cityArray[key]));
+        }
+
+        var result = {};
+        cities.then(function(data){ // async
+          let lineheight = parseFloat(document.getElementById('lineheight').value);
+          result = data.filter(function(row){
+            if (playspeed < 600){
+              return row.lng >= noon && row.lng < noon + 15/3600 * playspeed;
+            } else {
+              return row.lng >= noon && row.lng < noon + 15/3600 * 600;
+            }
+          });
+
+          // sort by latitude
+          result.sort(function(a, b) {
+            return a.lat > b.lat ? -1 : 1;
+            return 0;
+          });
+
+          // add your city first
+          result.splice(0, 0, yourcity);
+
+          if (result.length == 0){
+            // console.log(noon);
+          } else {
+            let ul = document.getElementById('cities');
+            ul.innerHTML = '';
+            cityArray = [];
+
+            //console.log(lon, result.length);
+            for (let key in result){
+              var nadir = [];
+              var x = radius * (Math.cos(Math.PI * 2 * result[key].lat/360)); // to the sun
+              var y = radius * Math.sin(Math.PI * 2 * result[key].lat/360); // to the pole
+              nadir.push(new THREE.Vector3(x, y, 0));
+              if (result[key].city == yourcity.city){
+                var h = 1.5;
+                var color = 0xff00ff;
+              } else {
+                var h = lineheight;
+                var color = 0xff0000;
+              }
+              nadir.push(new THREE.Vector3(x*h, y*h, 0));
+              const city = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints(nadir),
+                new THREE.LineBasicMaterial({color: color})
+              );
+              city.name = result[key].city;
+              city.rotation.y = (Math.PI * 2 * result[key].lng/360) + earth.rotation.y;
+              city.position.x = earth.position.x;
+              city.position.y = earth.position.y;
+              city.position.z = earth.position.z;
+              city.geometry.attributes.position.needsUpdate = true;
+              scene.add(city);
+
+              cityArray.push(city.name);
+            }
+
+            listCities(ul, result);
+          }
+        })
+      };
+
+      function listCities(ul, result){
+        for (let key in result) {
+          let li = document.createElement('li');
+          let a = document.createElement('a');
+          a.setAttribute('href', 'https://en.wikipedia.org/wiki/' + result[key].city);
+          a.setAttribute('target', '_blank');
+          a.appendChild(document.createTextNode(result[key].city));
+          let emoji = getFlagEmoji(result[key].iso2);
+          li.appendChild(document.createTextNode(emoji + ' '));
+          li.appendChild(a);
+          let dlon = yourcity.lng - result[key].lng;
+          li.appendChild(document.createTextNode(' ('+ dlon.toFixed(4) +')'));
+          ul.appendChild(li);
+        }
+      }
+
       function divideBy(s, unit){
         // unit should be year or month
         var d, subunit;
         if (unit == 'year') {
-          d = 365.2422;
+          d = loy;
           subunit = 'season';
         } else if (unit == 'month'){
-          d = 29.53059;
+          d = lom;
           subunit = 'week';
         }
         let remainderSeconds = s % (86400 * (d / 4));
@@ -257,9 +299,16 @@
         return {division, remainder1, subunit, remainderSeconds}
       }
 
-      function dms(frame, playspeed, unit){
-        var s = frame * playspeed / 60; // total seconds
-        var {division, remainder1, subunit, remainderSeconds} = divideBy(s, unit);
+      function hms2rad(s){
+        let arr = s.split(':').map(Number);
+        let hour = arr[0];
+        let minute = arr[1];
+        let second = arr[2];
+        return 2 * Math.PI * (hour * 3600 + minute * 60 + second) / 86400;
+      }
+
+      function dms(now, playspeed, unit){
+        var {division, remainder1, subunit, remainderSeconds} = divideBy(now, unit);
 
         remainder = remainderSeconds % 86400;
         let day = (remainderSeconds-remainder) / 86400;
@@ -267,12 +316,51 @@
         let hour = (remainderSeconds - day*86400 - remainder) / 3600;
         let second = remainder % 60;
         let minute = (remainderSeconds - day*86400 - hour*3600 - second) / 60;
-        return division.toFixed(0) + ' ' + unit + ' ' + remainder1.toFixed(0) + ' ' + subunit + ' ' + day.toFixed(0)+' day '+hour.toFixed(0)+':'+minute.toFixed(0)+':'+second.toFixed(2) + ' (' + s.toFixed(2) + ' seconds)'
+        return division.toFixed(0) + ' ' + unit + ' ' + remainder1.toFixed(0) + ' ' + subunit + ' ' + day.toFixed(0)+' day '+hour.toFixed(0)+':'+minute.toFixed(0)+':'+second.toFixed(2) + ' (' + now.toFixed(2) + ' seconds)'
       }
 
-      function updateframe(){
-        const playspeed = parseInt(document.getElementById('playspeed').value);
-        document.getElementById('frame').textContent = (parseInt(document.getElementById('secondinput').value) * 60 / playspeed).toFixed(0);
+      function calcDate(e){
+        switch (e.id) {
+          case 'resetT0':
+            dt = 0;
+            return dt;
+          case 'seasonplus':
+            dt += 86400 * loy / 4;
+            return dt;
+          case 'seasonminus':
+            dt -= 86400 * loy / 4;
+            return dt;
+            case 'weekplus':
+            dt += 86400 * lom / 4;
+            return dt;
+          case 'weekminus':
+            dt -= 86400 * lom / 4;
+            return dt;
+          case 'dayplus':
+            dt += 86400;
+            return dt;
+          case 'dayminus':
+            dt -= 86400;
+            return dt;
+          case 'hourplus':
+            dt += 3600;
+            return dt;
+          case 'hourminus':
+            dt -= 3600;
+            return dt;
+          case 'minplus':
+            dt += 60;
+            return dt;
+          case 'minminus':
+            dt -= 60;
+            return dt;
+          case 'secplus':
+            dt += 1;
+            return dt;
+          case 'secminus':
+            dt -= 1;
+            return dt;
+        }
       }
 
       function getFlagEmoji(countryCode) {
@@ -282,7 +370,33 @@
           .map(char =>  127397 + char.charCodeAt());
         return String.fromCodePoint(...codePoints);
       }
-    </script>
+
+      function updatecity(){
+        const cities = d3.csv('worldcities.csv', function(d){
+          return {
+            id: parseInt(d.id),
+            city: d.city,
+            iso2: d.iso2,
+            lng: parseFloat(d.lng),
+            lat: parseFloat(d.lat)
+          }
+        });
+
+        let arr = document.getElementById('yourcity').value.split(',');
+        cities.then(function(data){ // async
+          result = data.filter(function(row){
+            // https://stackoverflow.com/questions/5700636/using-javascript-to-perform-text-matches-with-without-accented-characters
+            return row.city.normalize('NFD').replace(/\p{Diacritic}/gu, "") == arr[0] & row.iso2 == arr[1];
+          });
+          if (result.length > 0){
+            console.log(result);
+            yourcity = result[0];
+            return yourcity
+          }
+        })
+      }
+
+  </script>
   </head>
   <body>
     <canvas id="myCanvas"></canvas>
@@ -290,14 +404,22 @@
       <ul id="cities"></ul>
     </div>
     <div id="panel" style="position:fixed; top:20; left:20; color:silver;">
-      <span id="current"></span>
-      <label for="control">control</label>
-      <select id="control">
-        <option value="1" selected>></option>
-        <option value="0">stop</option>
-        <option value="-1"><</option>
+      <select id="epoch">
+        <option value="equinox">equinox</option>
+        <option value="now" selected>now</option>
       </select>
-      frame: <span id="frame">0</span> <input id="secondinput" type="text" oninput="updateframe()"><br/>
+      <span id="current"></span>
+      noon: <span id="noon"></span>
+      frame: <span id="frame">0</span>
+      your city:<input id="yourcity" type="text" oninput="updatecity()"><br/>
+
+      <button id="resetT0" onclick="calcDate(this)">reset t0</button>
+      season: <button id="seasonplus" onclick="calcDate(this)">+</button><button id="seasonminus" onclick="calcDate(this)">-</button>
+      week: <button id="weekplus" onclick="calcDate(this)">+</button><button id="weekminus" onclick="calcDate(this)">-</button>
+      day: <button id="dayplus" onclick="calcDate(this)">+</button><button id="dayminus" onclick="calcDate(this)">-</button>
+      hour: <button id="hourplus" onclick="calcDate(this)">+</button><button id="hourminus" onclick="calcDate(this)">-</button>
+      minute: <button id="minplus" onclick="calcDate(this)">+</button><button id="minminus" onclick="calcDate(this)">-</button>
+      second: <button id="secplus" onclick="calcDate(this)">+</button><button id="secminus" onclick="calcDate(this)">-</button><br/>
       <label for="fov">fov: </label>
       <select id="fov">
         <option value="30">30</option>
@@ -315,19 +437,19 @@
         <option value="1500">1500</option>
         <option value="2000">2000</option>
         <option value="2500">2500</option>
-        <option value="3000" selected>3000</option>
+        <option value="3000">3000</option>
         <option value="3500">3500</option>
         <option value="4000">4000</option>
         <option value="4500">4500</option>
-        <option value="5000">5000</option>
+        <option value="5000" selected>5000</option>
       </select>
       <label for="camera">camara distance</label>
       <select id="camera">
-        <option value="1000">1000</option>
+        <option value="1000" selected>1000</option>
         <option value="1500">1500</option>
         <option value="2000">2000</option>
         <option value="2500">2500</option>
-        <option value="3000" selected>3000</option>
+        <option value="3000">3000</option>
         <option value="3500">3500</option>
         <option value="4000">4000</option>
       </select><br/>
@@ -348,15 +470,34 @@
         <option value="300" selected>300</option>
         <option value="400">400</option>
         <option value="500">500</option>
-      </select><br/>
+      </select>
+      <label for="lineheight">lineheight</label>
+      <select id="lineheight">
+        <option value="1.02">1.02</option>
+        <option value="1.04">1.04</option>
+        <option value="1.06">1.06</option>
+        <option value="1.08">1.08</option>
+        <option value="1.1" selected>1.1</option>
+        <option value="1.12">1.12</option>
+        <option value="1.14">1.14</option>
+        <option value="1.16">1.16</option>
+      </select>
+      <br/>
       sidereal year: <span id="loy">366.2422</span><br/>
       synodic month: <span id="lom">29.53059</span><br/>
       playspeed:
       <select id="playspeed">
-        <option value="1" >x1</option>
+        <option value="-600">-10 min/sec (-x600)</option>
+        <option value="-60">-1 min/sec (-x60)</option>
+        <option value="-30">-x30</option>
+        <option value="-6">-x6</option>
+        <option value="-2">-x2</option>
+        <option value="-1">-x1</option>
+        <option value="0">stop</option>
+        <option value="1" selected>x1</option>
         <option value="2">x2</option>
         <option value="6">x6</option>
-        <option value="30" selected>x30</option>
+        <option value="30">x30</option>
         <option value="60">1 min/sec (x60)</option>
         <option value="600">10 min/sec (x600)</option>
         <option value="3600">1 hour/sec (x3600)</option>
