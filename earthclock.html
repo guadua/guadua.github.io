@@ -14,7 +14,7 @@
       var unixtime = 0;
       var now = 0;
       var loy, lom;
-      var yourcity = {city: 'Kobe', iso2:'JP', lng:135, lat:35};
+      var yourcity = {city: 'Kobe', iso2:'JP', lng:135.2745, lat:34.7344};
       var noon;
 
       function init() {
@@ -106,8 +106,9 @@
         // 毎フレーム時に実行されるループイベントです
         function tick() {
           const theta0 = hms2rad('15:32:00') - Math.PI;
+          const thetaMoon0 = hms2rad('13:55:00'); // Moon right ascension
           // console.log(theta0e;
-          const equinox = new Date('2022-03-22 00:32:00').getTime()/ 1000; // 15:32:00
+          const equinox = new Date('2022-03-22 00:32:00').getTime()/ 1000; // 15:32:00UTC
           unixtime = new Date().getTime() / 1000;
           if (document.getElementById('epoch').value == 'equinox'){
             now = unixtime - t0 + dt;
@@ -130,6 +131,8 @@
           const radianPerSecond = 2 * Math.PI / 86400 * (loy + 1) / loy; // earth
           const radianPerSecond1 = radianPerSecond / loy; // solar
           const radianPerSecond2 = (radianPerSecond1 * lom * 86400 + 2 * Math.PI) / lom / 86400 // moon
+
+          const deltaMoonSeconds = thetaMoon0 / (radianPerSecond2-radianPerSecond1)
 
           // camera
           var fov = parseInt(document.getElementById('fov').value);
@@ -160,9 +163,9 @@
           earth.position.y = -sin * radius; // approaching to celestial north pole
 
           // lunar motion
-          earth.position.x = -Math.cos(radianPerSecond2 * now) * radius * .75;
-          earth.position.z = Math.sin(radianPerSecond2 * now) * radius * .75;
-          lunar.rotation.y = radianPerSecond2 * now;
+          earth.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          earth.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          lunar.rotation.y = radianPerSecond2 * now + thetaMoon0;
 
           // longitude at noon
           noon = ((-earth.rotation.y + solar.rotation.y) / Math.PI / 2 * 360) % 360;
@@ -187,7 +190,7 @@
 
           document.getElementById('frame').textContent = frame;
           document.getElementById('solarday').textContent = dms(now, playspeed, 'year');
-          document.getElementById('lunarday').textContent = dms(now, playspeed, 'month');
+          document.getElementById('lunarday').textContent = dms(now+deltaMoonSeconds, playspeed, 'month');
           document.getElementById('fpsd').textContent = '60/' + playspeed;
           document.getElementById('sin').textContent = sin;
           document.getElementById('cos').textContent = cos;
@@ -411,7 +414,7 @@
       <span id="current"></span>
       noon: <span id="noon"></span>
       frame: <span id="frame">0</span>
-      your city:<input id="yourcity" type="text" oninput="updatecity()"><br/>
+      your city:<input id="yourcity" type="text" value="Kobe,JP" oninput="updatecity()"><br/>
 
       <button id="resetT0" onclick="calcDate(this)">reset t0</button>
       season: <button id="seasonplus" onclick="calcDate(this)">+</button><button id="seasonminus" onclick="calcDate(this)">-</button>
