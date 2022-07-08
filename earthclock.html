@@ -184,7 +184,7 @@
           document.getElementById('noon').textContent = (localtime).toFixed(4);
 
           // plot cities
-          if ((now % 1).toFixed(1) == 0){
+          if ((unixtime % 1).toFixed(1) == 0){
             plotCities(scene, radius, cities, playspeed, now, theta0, earth, solar);
           };
 
@@ -203,14 +203,21 @@
       }
 
       function plotCities(scene, radius, cities, playspeed, now, theta0, earth, solar){
-        // remove first
-        for (let key in cityArray){
-          scene.remove(scene.getObjectByName(cityArray[key]));
-        }
-
+        let lineheight = parseFloat(document.getElementById('lineheight').value);
+        var notFound = true;
         var result = {};
+
         cities.then(function(data){ // async
-          let lineheight = parseFloat(document.getElementById('lineheight').value);
+
+          // remove first
+          for (let key in cityArray){
+            scene.remove(scene.getObjectByName(cityArray[key]));
+          }
+          let ul = document.getElementById('cities');
+          ul.innerHTML = '';
+          cityArray = [];
+
+          // nearest to the noon
           result = data.filter(function(row){
             if (playspeed < 600){
               return row.lng >= noon && row.lng < noon + 15/3600 * playspeed;
@@ -218,6 +225,23 @@
               return row.lng >= noon && row.lng < noon + 15/3600 * 600;
             }
           });
+
+          // select the first comming next if not found
+          if (result.length > 0){
+            notFound=false;
+          } else {
+            result = data.filter(function (row){
+              // return row.lng >= noon; // ago
+              return row.lng < (noon + 15/3600 * playspeed); // in coming
+            });
+            // sort by longitude
+            result.sort(function(a, b) {
+              // return a.lng < b.lng ? -1 : 1; // ago
+              return a.lng > b.lng ? -1 : 1; // in coming
+              return 0;
+            });
+            result = [result[0]]; // only the first one
+          }
 
           // sort by latitude
           result.sort(function(a, b) {
@@ -228,48 +252,42 @@
           // add your city first
           result.splice(0, 0, yourcity);
 
-          if (result.length == 0){
-            // console.log(noon);
-          } else {
-            let ul = document.getElementById('cities');
-            ul.innerHTML = '';
-            cityArray = [];
-
-            //console.log(lon, result.length);
-            for (let key in result){
-              var nadir = [];
-              var x = radius * (Math.cos(Math.PI * 2 * result[key].lat/360)); // to the sun
-              var y = radius * Math.sin(Math.PI * 2 * result[key].lat/360); // to the pole
-              nadir.push(new THREE.Vector3(x, y, 0));
-              if (result[key].city == yourcity.city){
-                var h = 1.5;
-                var color = 0xff00ff;
-              } else {
-                var h = lineheight;
-                var color = 0xff0000;
-              }
-              nadir.push(new THREE.Vector3(x*h, y*h, 0));
-              const city = new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints(nadir),
-                new THREE.LineBasicMaterial({color: color})
-              );
-              city.name = result[key].city;
-              city.rotation.y = (Math.PI * 2 * result[key].lng/360) + earth.rotation.y;
-              city.position.x = earth.position.x;
-              city.position.y = earth.position.y;
-              city.position.z = earth.position.z;
-              city.geometry.attributes.position.needsUpdate = true;
-              scene.add(city);
-
-              cityArray.push(city.name);
+          console.log(noon, result.length);
+          for (let key in result){
+            var nadir = [];
+            console.log(result[key]);
+            var x = radius * (Math.cos(Math.PI * 2 * result[key].lat/360)); // to the sun
+            var y = radius * Math.sin(Math.PI * 2 * result[key].lat/360); // to the pole
+            nadir.push(new THREE.Vector3(x, y, 0));
+            if (result[key].city == yourcity.city){
+              var h = 1.5;
+              var color = 0xff00ff;
+            } else {
+              var h = lineheight;
+              var color = 0xff0000;
             }
+            nadir.push(new THREE.Vector3(x*h, y*h, 0));
+            const city = new THREE.Line(
+              new THREE.BufferGeometry().setFromPoints(nadir),
+              new THREE.LineBasicMaterial({color: color})
+            );
+            city.name = result[key].city;
+            city.rotation.y = (Math.PI * 2 * result[key].lng/360) + earth.rotation.y;
+            city.position.x = earth.position.x;
+            city.position.y = earth.position.y;
+            city.position.z = earth.position.z;
+            city.geometry.attributes.position.needsUpdate = true;
+            scene.add(city);
 
-            listCities(ul, result);
+            cityArray.push(city.name);
+
           }
+          listCities(noon, ul, result, notFound);
         })
       };
 
-      function listCities(ul, result){
+      function listCities(noon, ul, result, notFound){
+
         for (let key in result) {
           let li = document.createElement('li');
           let a = document.createElement('a');
@@ -279,8 +297,19 @@
           let emoji = getFlagEmoji(result[key].iso2);
           li.appendChild(document.createTextNode(emoji + ' '));
           li.appendChild(a);
-          let dlon = yourcity.lng - result[key].lng;
-          li.appendChild(document.createTextNode(' ('+ dlon.toFixed(4) +')'));
+          let dlon = result[key].lng - yourcity.lng;
+          if (dlon > 180) {
+            dlon = dlon-360;
+          } else if (dlon < -180) {
+            dlon = dlon+360;
+          }
+
+          if (notFound & dlon != 0) {
+            // eta = ' (' + ((result[key].lng-noon)/15*3600).toFixed() + ' secs ago)'
+            eta = ' (in ' + ((-result[key].lng+noon)/15*3600).toFixed() + ' secs)'
+          } else { eta = ''}
+
+          li.appendChild(document.createTextNode(' ('+ dlon.toFixed(4) +')' + eta));
           ul.appendChild(li);
         }
       }
@@ -476,14 +505,13 @@
       </select>
       <label for="lineheight">lineheight</label>
       <select id="lineheight">
-        <option value="1.02">1.02</option>
-        <option value="1.04">1.04</option>
-        <option value="1.06">1.06</option>
-        <option value="1.08">1.08</option>
+        <option value="1.05">1.05</option>
         <option value="1.1" selected>1.1</option>
-        <option value="1.12">1.12</option>
-        <option value="1.14">1.14</option>
-        <option value="1.16">1.16</option>
+        <option value="1.2">1.2</option>
+        <option value="1.3">1.3</option>
+        <option value="1.4">1.4</option>
+        <option value="1.5">1.5</option>
+        <option value="1.6">1.6</option>
       </select>
       <br/>
       sidereal year: <span id="loy">366.2422</span><br/>
