@@ -88,8 +88,39 @@
         });
         // メッシュを作成
         const earth = new THREE.Mesh(geometry, material);
+
+        // 子午線を作成
+        const noonCurve = new THREE.EllipseCurve(0, 0, radius, radius, -0.5*Math.PI, 0.5*Math.PI, 0);
+        const yourcityCurve = new THREE.EllipseCurve(0, 0, radius, radius, -0.5*Math.PI, 0.5*Math.PI, 0);
+        const noonMeridianPoints = noonCurve.getPoints(24);
+        const yourcityMeridianPoints = noonCurve.getPoints(24);
+        const noonMeridianGeometry = new THREE.BufferGeometry().setFromPoints(noonMeridianPoints);
+        const yourcityMeridianGeometry = new THREE.BufferGeometry().setFromPoints(noonMeridianPoints);
+        const noonMeridianMaterial = new THREE.LineBasicMaterial({color: 0xff0000});
+        const yourcityMeridianMaterial = new THREE.LineBasicMaterial({color: 0xff00ff});
+        const noonMeridian = new THREE.Line(noonMeridianGeometry, noonMeridianMaterial);
+        const yourcityMeridian = new THREE.Line(yourcityMeridianGeometry, yourcityMeridianMaterial);
+
+        // yourcity を作成
+        const nadir = [];
+        const x = radius * (Math.cos(Math.PI * 2 * yourcity.lat/360)); // to the sun
+        const y = radius * Math.sin(Math.PI * 2 * yourcity.lat/360); // to the pole
+        nadir.push(new THREE.Vector3(x, y, 0));
+        nadir.push(new THREE.Vector3(1.5*x, 1.5*y, 0));
+        const yourcityLine = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(nadir),
+          new THREE.LineBasicMaterial({color: 0xff00ff})
+        );
+        yourcityLine.rotation.y = (Math.PI * 2 * yourcity.lng/360) + earth.rotation.y;
+        yourcityLine.position.x = earth.position.x;
+        yourcityLine.position.y = earth.position.y;
+        yourcityLine.position.z = earth.position.z;
+
         // 3D空間にメッシュを追加
         scene.add(earth);
+        scene.add(noonMeridian);
+        scene.add(yourcityMeridian);
+        scene.add(yourcityLine);
         scene.add(solar);
         scene.add(lunar);
 
@@ -154,6 +185,9 @@
 
           // based on second
           earth.rotation.y = now * radianPerSecond + theta0;
+          noonMeridian.rotation.y = now * radianPerSecond + theta0;
+          yourcityMeridian.rotation.y = now * radianPerSecond + theta0;
+          yourcityLine.rotation.y = now * radianPerSecond + theta0;
 
           // solar motion
           solar.rotation.y = now * radianPerSecond1;
@@ -161,14 +195,27 @@
           var cos = Math.cos(solar.rotation.y);
           directionalLight.position.set(cos, sin*Math.sin(Math.PI * 2 * 23.4 / 360), -sin);
           earth.position.y = -sin * radius; // approaching to celestial north pole
+          noonMeridian.position.y = -sin * radius;
+          yourcityMeridian.position.y = -sin * radius;
+          yourcityLine.position.y = -sin * radius;
 
           // lunar motion
           earth.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          noonMeridian.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          yourcityMeridian.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          yourcityLine.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           earth.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          noonMeridian.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          yourcityMeridian.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          yourcityLine.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           lunar.rotation.y = radianPerSecond2 * now + thetaMoon0;
 
           // longitude at noon
           noon = ((-earth.rotation.y + solar.rotation.y) / Math.PI / 2 * 360) % 360;
+          noonMeridian.rotation.y +=  -earth.rotation.y + solar.rotation.y;
+          yourcityMeridian.rotation.y += yourcity.lng / 360 * 2 * Math.PI;
+          yourcityLine.rotation.y += yourcity.lng / 360 * 2 * Math.PI;
+
           if (noon < -180){
             noon = noon + 360;
           } else if (noon > 180) {
@@ -249,27 +296,17 @@
             return 0;
           });
 
-          // add your city first
-          result.splice(0, 0, yourcity);
-
           console.log(noon, result.length);
           for (let key in result){
-            var nadir = [];
+            const nadir = [];
             console.log(result[key]);
-            var x = radius * (Math.cos(Math.PI * 2 * result[key].lat/360)); // to the sun
-            var y = radius * Math.sin(Math.PI * 2 * result[key].lat/360); // to the pole
+            const x = radius * (Math.cos(Math.PI * 2 * result[key].lat/360)); // to the sun
+            const y = radius * Math.sin(Math.PI * 2 * result[key].lat/360); // to the pole
             nadir.push(new THREE.Vector3(x, y, 0));
-            if (result[key].city == yourcity.city){
-              var h = 1.5;
-              var color = 0xff00ff;
-            } else {
-              var h = lineheight;
-              var color = 0xff0000;
-            }
-            nadir.push(new THREE.Vector3(x*h, y*h, 0));
+            nadir.push(new THREE.Vector3(x*lineheight, y*lineheight, 0));
             const city = new THREE.Line(
               new THREE.BufferGeometry().setFromPoints(nadir),
-              new THREE.LineBasicMaterial({color: color})
+              new THREE.LineBasicMaterial({color: 0xff0000})
             );
             city.name = result[key].city;
             city.rotation.y = (Math.PI * 2 * result[key].lng/360) + earth.rotation.y;
@@ -282,6 +319,8 @@
             cityArray.push(city.name);
 
           }
+          // add your city first
+          result.splice(0, 0, yourcity);
           listCities(noon, ul, result, notFound);
         })
       };
