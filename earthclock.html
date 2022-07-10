@@ -16,6 +16,7 @@
       var loy, lom;
       var yourcity = {city: 'Kobe', iso2:'JP', lng:135.2745, lat:34.7344};
       var noon;
+      var oldRemainder1 = {season:0, week:0}; // season or week
 
       function init() {
         t0 = new Date().getTime() / 1000;
@@ -92,14 +93,24 @@
         // 子午線を作成
         const noonCurve = new THREE.EllipseCurve(0, 0, radius, radius, -0.5*Math.PI, 0.5*Math.PI, 0);
         const yourcityCurve = new THREE.EllipseCurve(0, 0, radius, radius, -0.5*Math.PI, 0.5*Math.PI, 0);
+        const solarCurve = new THREE.EllipseCurve(0, 0, radius, radius, -0.5*Math.PI, 0.5*Math.PI, 0);
+        const lunarCurve = new THREE.EllipseCurve(0, 0, radius, radius, -0.5*Math.PI, 0.5*Math.PI, 0);
         const noonMeridianPoints = noonCurve.getPoints(24);
         const yourcityMeridianPoints = noonCurve.getPoints(24);
+        const solarMeridianPoints = noonCurve.getPoints(24);
+        const lunarMeridianPoints = noonCurve.getPoints(24);
         const noonMeridianGeometry = new THREE.BufferGeometry().setFromPoints(noonMeridianPoints);
         const yourcityMeridianGeometry = new THREE.BufferGeometry().setFromPoints(noonMeridianPoints);
+        const solarMeridianGeometry = new THREE.BufferGeometry().setFromPoints(noonMeridianPoints);
+        const lunarMeridianGeometry = new THREE.BufferGeometry().setFromPoints(noonMeridianPoints);
         const noonMeridianMaterial = new THREE.LineBasicMaterial({color: 0xff0000});
         const yourcityMeridianMaterial = new THREE.LineBasicMaterial({color: 0xff00ff});
+        const solarMeridianMaterial = new THREE.LineBasicMaterial({color: 0x00ffff});
+        const lunarMeridianMaterial = new THREE.LineBasicMaterial({color: 0xffff00});
         const noonMeridian = new THREE.Line(noonMeridianGeometry, noonMeridianMaterial);
         const yourcityMeridian = new THREE.Line(yourcityMeridianGeometry, yourcityMeridianMaterial);
+        const solarMeridian = new THREE.Line(solarMeridianGeometry, solarMeridianMaterial);
+        const lunarMeridian = new THREE.Line(lunarMeridianGeometry, lunarMeridianMaterial);
 
         // yourcity を作成
         const nadir = [];
@@ -116,13 +127,27 @@
         yourcityLine.position.y = earth.position.y;
         yourcityLine.position.z = earth.position.z;
 
+        // solarMeridian;
+        solarMeridian.rotation.y = oldRemainder1.season;
+        solarMeridian.position.x = earth.position.x;
+        solarMeridian.position.y = earth.position.y;
+        solarMeridian.position.z = earth.position.z;
+
+        // lunarMeridian;
+        lunarMeridian.rotation.y = oldRemainder1.week;
+        lunarMeridian.position.x = earth.position.x;
+        lunarMeridian.position.y = earth.position.y;
+        lunarMeridian.position.z = earth.position.z;
+
         // 3D空間にメッシュを追加
         scene.add(earth);
         scene.add(noonMeridian);
         scene.add(yourcityMeridian);
         scene.add(yourcityLine);
         scene.add(solar);
+        scene.add(solarMeridian);
         scene.add(lunar);
+        scene.add(lunarMeridian);
 
         // 平行光源
         const directionalLight = new THREE.DirectionalLight(0xffffff);
@@ -183,13 +208,21 @@
           var scale = radius / 300;
           earth.scale.setScalar(scale);
 
+          // year and month
+          var year = divideBy(now, 'year');
+          var dmsSinceNewSeason = dms(year.remainderSeconds);
+          var month = divideBy(now+deltaMoonSeconds, 'month');
+          var dmsSinceNewWeek = dms(month.remainderSeconds);
+
           // based on second
           earth.rotation.y = now * radianPerSecond + theta0;
           noonMeridian.rotation.y = now * radianPerSecond + theta0;
           yourcityMeridian.rotation.y = now * radianPerSecond + theta0;
           yourcityLine.rotation.y = now * radianPerSecond + theta0;
+          solarMeridian.rotation.y = now * radianPerSecond + theta0;
+          lunarMeridian.rotation.y = now * radianPerSecond + theta0;
 
-          // solar motion
+          // motion by ecliptic
           solar.rotation.y = now * radianPerSecond1;
           var sin = Math.sin(solar.rotation.y);
           var cos = Math.cos(solar.rotation.y);
@@ -198,16 +231,22 @@
           noonMeridian.position.y = -sin * radius;
           yourcityMeridian.position.y = -sin * radius;
           yourcityLine.position.y = -sin * radius;
+          solarMeridian.position.y = -sin * radius;
+          lunarMeridian.position.y = -sin * radius;
 
           // lunar motion
           earth.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           noonMeridian.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           yourcityMeridian.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           yourcityLine.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          solarMeridian.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          lunarMeridian.position.x = -Math.cos(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           earth.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           noonMeridian.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           yourcityMeridian.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           yourcityLine.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          solarMeridian.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
+          lunarMeridian.position.z = Math.sin(radianPerSecond2 * now + thetaMoon0) * radius * .75;
           lunar.rotation.y = radianPerSecond2 * now + thetaMoon0;
 
           // longitude at noon
@@ -215,6 +254,8 @@
           noonMeridian.rotation.y +=  -earth.rotation.y + solar.rotation.y;
           yourcityMeridian.rotation.y += yourcity.lng / 360 * 2 * Math.PI;
           yourcityLine.rotation.y += yourcity.lng / 360 * 2 * Math.PI;
+          solarMeridian.rotation.y = noonMeridian.rotation.y + year.radian + Math.PI;
+          lunarMeridian.rotation.y = noonMeridian.rotation.y + month.radian + Math.PI;
 
           if (noon < -180){
             noon = noon + 360;
@@ -222,13 +263,9 @@
             noon = noon - 360;
           }
 
-          var localtime = (noon - yourcity.lng);
-          if (localtime < -180) {
-            localtime = localtime + 360;
-          } else if (localtime > 180) {
-            localtime = localtime - 360;
-          }
-          document.getElementById('noon').textContent = (localtime).toFixed(4);
+          localtime = noon2localtime(noon);
+          document.getElementById('localtime').textContent = localtime;
+
 
           // plot cities
           if ((unixtime % 1).toFixed(1) == 0){
@@ -236,8 +273,8 @@
           };
 
           document.getElementById('frame').textContent = frame;
-          document.getElementById('solarday').textContent = dms(now, playspeed, 'year');
-          document.getElementById('lunarday').textContent = dms(now+deltaMoonSeconds, playspeed, 'month');
+          document.getElementById('solarday').textContent = year.division + ' year ' + year.remainder1 + ' season ' + dmsSinceNewSeason;
+          document.getElementById('lunarday').textContent = month.division + ' month ' + month.remainder1 + ' week ' + dmsSinceNewWeek;
           document.getElementById('fpsd').textContent = '60/' + playspeed;
           document.getElementById('sin').textContent = sin;
           document.getElementById('cos').textContent = cos;
@@ -269,7 +306,7 @@
             if (playspeed < 600){
               return row.lng >= noon && row.lng < noon + 15/3600 * playspeed;
             } else {
-              return row.lng >= noon && row.lng < noon + 15/3600 * 600;
+              return row.lng >= noon && row.lng < noon + 15/3600;
             }
           });
 
@@ -319,7 +356,7 @@
             cityArray.push(city.name);
 
           }
-          // add your city first
+          // add your city first before creating html ul list
           result.splice(0, 0, yourcity);
           listCities(noon, ul, result, notFound);
         })
@@ -345,7 +382,7 @@
 
           if (notFound & dlon != 0) {
             // eta = ' (' + ((result[key].lng-noon)/15*3600).toFixed() + ' secs ago)'
-            eta = ' (in ' + ((-result[key].lng+noon)/15*3600).toFixed() + ' secs)'
+            eta = ' (in ' + ((-result[key].lng+noon)/15*3600).toFixed(0) + ' secs)'
           } else { eta = ''}
 
           li.appendChild(document.createTextNode(' ('+ dlon.toFixed(4) +')' + eta));
@@ -358,16 +395,18 @@
         var d, subunit;
         if (unit == 'year') {
           d = loy;
-          subunit = 'season';
         } else if (unit == 'month'){
           d = lom;
-          subunit = 'week';
         }
         let remainderSeconds = s % (86400 * (d / 4));
+        let radian = (remainderSeconds % 86400) / 86400 * Math.PI * 2;
         let division1 = (s - remainderSeconds) / (86400 * d / 4); // total season or week
         let remainder1 = division1 % 4;
+        let isNew = remainder1 != oldRemainder1[unit];
         let division = (division1 - remainder1) / 4
-        return {division, remainder1, subunit, remainderSeconds}
+        oldRemainder1[unit] = remainder1;
+        // console.log(division, remainder1, primeMeridian, isNew);
+        return {division, remainder1, remainderSeconds, radian, isNew}
       }
 
       function hms2rad(s){
@@ -378,16 +417,14 @@
         return 2 * Math.PI * (hour * 3600 + minute * 60 + second) / 86400;
       }
 
-      function dms(now, playspeed, unit){
-        var {division, remainder1, subunit, remainderSeconds} = divideBy(now, unit);
-
+      function dms(remainderSeconds){
         remainder = remainderSeconds % 86400;
         let day = (remainderSeconds-remainder) / 86400;
         remainder = remainder % 3600;
         let hour = (remainderSeconds - day*86400 - remainder) / 3600;
         let second = remainder % 60;
         let minute = (remainderSeconds - day*86400 - hour*3600 - second) / 60;
-        return division.toFixed(0) + ' ' + unit + ' ' + remainder1.toFixed(0) + ' ' + subunit + ' ' + day.toFixed(0)+' day '+hour.toFixed(0)+':'+minute.toFixed(0)+':'+second.toFixed(2) + ' (' + now.toFixed(2) + ' seconds)'
+        return day.toFixed(0)+' day '+hour.toFixed(0)+':'+minute.toFixed(0)+':'+second.toFixed(2)
       }
 
       function calcDate(e){
@@ -467,11 +504,25 @@
         })
       }
 
+      function noon2localtime(noon){
+
+        let midnight = yourcity.lng - noon - 180;
+        if (midnight < 0){
+          midnight += 360;
+        }
+        const sec = midnight / 15 *3600;
+        const s = sec % 60;
+        const hhmm = sec - s;
+        const m = (hhmm % 3600) / 60;
+        const h = (hhmm - m*60) / 3600;
+        return h + ':' + m + ':' + s.toFixed(2) + ' deg:(' + midnight.toFixed(4) + ')';
+      }
+
   </script>
   </head>
   <body>
     <canvas id="myCanvas"></canvas>
-    <div style="position: fixed; top:20; right:20; width:200px">
+    <div style="position: fixed; top:20; right:20; width:300px">
       <ul id="cities"></ul>
     </div>
     <div id="panel" style="position:fixed; top:20; left:20; color:silver;">
@@ -480,7 +531,7 @@
         <option value="now" selected>now</option>
       </select>
       <span id="current"></span>
-      noon: <span id="noon"></span>
+      localtime: <span id="localtime"></span>
       frame: <span id="frame">0</span>
       your city:<input id="yourcity" type="text" value="Kobe,JP" oninput="updatecity()"><br/>
 
@@ -544,9 +595,8 @@
       </select>
       <label for="lineheight">lineheight</label>
       <select id="lineheight">
-        <option value="1.05">1.05</option>
-        <option value="1.1" selected>1.1</option>
-        <option value="1.2">1.2</option>
+        <option value="1.1">1.1</option>
+        <option value="1.2" selected>1.2</option>
         <option value="1.3">1.3</option>
         <option value="1.4">1.4</option>
         <option value="1.5">1.5</option>
@@ -557,6 +607,13 @@
       synodic month: <span id="lom">29.53059</span><br/>
       playspeed:
       <select id="playspeed">
+        <option value="31643326">-1 year /sec (-x31643326)</option>
+        <option value="-2360534">-1 month /sec (-x2360534)</option>
+        <option value="-864000">-10 days/sec (-x864000)</option>
+        <option value="-590133">-1 week /sec (-x590133)</option>
+        <option value="-14400">-6 hours/sec (-x14400)</option>
+        <option value="-86400">-1 day/sec (-x86400)</option>
+        <option value="-3600">-1 hour/sec (-x3600)</option>
         <option value="-600">-10 min/sec (-x600)</option>
         <option value="-60">-1 min/sec (-x60)</option>
         <option value="-30">-x30</option>
