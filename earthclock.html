@@ -254,6 +254,12 @@
           noonMeridian.rotation.y +=  -earth.rotation.y + solar.rotation.y;
           yourcityMeridian.rotation.y += yourcity.lng / 360 * 2 * Math.PI;
           yourcityLine.rotation.y += yourcity.lng / 360 * 2 * Math.PI;
+          const nadir = [];
+          const x = radius * (Math.cos(Math.PI * 2 * yourcity.lat/360)); // to the sun
+          const y = radius * Math.sin(Math.PI * 2 * yourcity.lat/360); // to the pole
+          nadir.push(new THREE.Vector3(x, y, 0));
+          nadir.push(new THREE.Vector3(1.5*x, 1.5*y, 0));
+          yourcityLine.geometry = new THREE.BufferGeometry().setFromPoints(nadir);
           solarMeridian.rotation.y = noonMeridian.rotation.y + year.radian + Math.PI;
           lunarMeridian.rotation.y = noonMeridian.rotation.y + month.radian + Math.PI;
 
@@ -402,11 +408,9 @@
         let radian = (remainderSeconds % 86400) / 86400 * Math.PI * 2;
         let division1 = (s - remainderSeconds) / (86400 * d / 4); // total season or week
         let remainder1 = division1 % 4;
-        let isNew = remainder1 != oldRemainder1[unit];
         let division = (division1 - remainder1) / 4
         oldRemainder1[unit] = remainder1;
-        // console.log(division, remainder1, primeMeridian, isNew);
-        return {division, remainder1, remainderSeconds, radian, isNew}
+        return {division, remainder1, remainderSeconds, radian}
       }
 
       function hms2rad(s){
