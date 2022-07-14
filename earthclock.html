@@ -14,7 +14,7 @@
       var unixtime = 0;
       var now = 0;
       var loy, lom;
-      var yourcity = {city: 'Kobe', iso2:'JP', lng:135.2745, lat:34.7344};
+      var yourcity = {city: 'Kobe', iso2:'JP', lng:135.2745, lat:34.7344, population:1500000};
       var noon;
       var oldRemainder1 = {season:0, week:0}; // season or week
 
@@ -27,7 +27,8 @@
             city: d.city,
             iso2: d.iso2,
             lng: parseFloat(d.lng),
-            lat: parseFloat(d.lat)
+            lat: parseFloat(d.lat),
+            population: parseInt(d.population)
           }
         })
 
@@ -201,6 +202,8 @@
           distance = parseInt(document.getElementById('camera').value);
           var perspectiveParams = document.getElementById('perspective').value.split(',').map(Number);
           camera.position.set(perspectiveParams[0]*distance, perspectiveParams[1]*distance, perspectiveParams[2]*distance);
+          // const targetMatrix = new THREE.Vector3(perspectiveParams[0]*distance, perspectiveParams[1]*distance, perspectiveParams[2]*distance);
+          // camera.position.lerp(targetMatrix, .01);
           camera.lookAt(new THREE.Vector3(0,0,0));
 
           // scale the size of the earth
@@ -375,7 +378,7 @@
           let a = document.createElement('a');
           a.setAttribute('href', 'https://en.wikipedia.org/wiki/' + result[key].city);
           a.setAttribute('target', '_blank');
-          a.appendChild(document.createTextNode(result[key].city));
+          a.appendChild(document.createTextNode(result[key].city + ' ' + result[key].population));
           let emoji = getFlagEmoji(result[key].iso2);
           li.appendChild(document.createTextNode(emoji + ' '));
           li.appendChild(a);
@@ -490,7 +493,8 @@
             city: d.city,
             iso2: d.iso2,
             lng: parseFloat(d.lng),
-            lat: parseFloat(d.lat)
+            lat: parseFloat(d.lat),
+            population: parseInt(d.population)
           }
         });
 
@@ -584,11 +588,11 @@
       <label for="perspective">perspective</label>
       <select id="perspective">
         <option value="0,1,0" selected>North</option>
-        <option value="0,-1,0">South</option>
         <option value="1,0,0">Libra</option>
-        <option value="-1,0,0">Aries</option>
         <option value="0,0,1">Scorpion</option>
+        <option value="-1,0,0">Aries</option>
         <option value="0,0,-1">Orion</option>
+        <option value="0,-1,0">South</option>
       </select><br/>
       <label for="radius">radius</label>
       <select id="radius">
