@@ -13,9 +13,7 @@ Constitution November 3, 1946
 
 We, the Japanese people, acting through our duly elected representatives in the National Diet, determined that we shall secure for ourselves and our posterity the fruits of peaceful cooperation with all nations and the blessings of liberty throughout this land, and resolved that never again shall we be visited with the horrors of war through the action of government, do proclaim that sovereign power resides with the people and do firmly establish this Constitution. <b>Government is a sacred trust of the people</b>[^1], the authority for which is derived from the people, the powers of which are exercised by the representatives of the people, and <b>the benefits of which are enjoyed by the people</b>[^2]. This is a universal principle of mankind upon which this Constitution is founded. We reject and revoke all constitutions, laws, ordinances, and rescripts in conflict herewith.
 
-[^1]: 厳粛な信託は国民との対話によって行われる。出生後最初の相互作用は乳幼児を見る医師、看護師、そして母あるいは家族との間にあり、帰宅後は家事であるだけでなく、最初の労働である。全ての家事は、労働である。
-  The trust can be established only by conversation between government and the citizen. The first interaction of human being after birth is with doctors, nurses, and the mother, or family, and after going back to home it is not only a housework but the first labour. Every housework is labour.
+[^1]: 厳粛な信託は国民との対話によって行われる。出生後最初の相互作用は乳幼児を見る医師、看護師、そして母あるいは家族との間にあり、帰宅後は家事であるだけでなく、最初の労働である。全ての家事は、労働である。The trust can be established only by conversation between government and the citizen. The first interaction of human being after birth is with doctors, nurses, and the mother, or family, and after going back to home it is not only a housework but the first labour. Every housework is labour.
 
-[^2]: 全てを福利だと国民に押し付けてはいけない。政府も過ちを犯す。 
-  The goverment should not force everithing as benefit to the citizen. Government also make mistakes.
+[^2]: 全てを福利だと国民に押し付けてはいけない。政府も過ちを犯す。 The goverment should not force everithing as benefit to the citizen. Government also make mistakes.
 
