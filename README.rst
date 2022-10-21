@@ -15,8 +15,7 @@ We, the Japanese people, acting through our duly elected representatives in the 
 
 <b>太字体部分は問題である。The bolded parts are problematic. </b>
 
-<!--
-[1^]: 厳粛な信託は国民との対話によって行われる。出生後最初の相互作用は乳幼児を見る医師、看護師、そして母あるいは家族との間にあり、帰宅後は家事であるだけでなく、最初の労働である。全ての家事は、労働である。The trust can be established only by conversation between government and the citizen. The first interaction of human being after birth is with doctors, nurses, and the mother, or family, and after going back to home it is not only a housework but the first labour. Every housework is labour.
+1. 厳粛な信託は国民との対話によって行われる。投票の秘密によって、主権者が匿名化することは、主権者を主権者でなくす為政者による欺瞞だ。また、出生後最初の相互作用は乳幼児を見る医師、看護師、そして母あるいは家族との間にあり、帰宅後は家事であるだけでなく、最初の労働である。全ての家事は、労働である。そして、IoT は私達の生活からデータを掠め取る。The trust can be established only by conversation between government and the citizen. The anonimalization of the people by the secret of ballot is a deceit by the goverment so that they deprive the power from the people. Furthermore, the first interaction of human being after birth is with doctors, nurses, and the mother, or family, and after going back to home the houseworks by family is not during vacation, are nothing but labour. Every housework is labour. And the IoT devices steel data from our daily lives.
 
-[2^]: 全てを福利だと国民に押し付けてはいけない。政府も過ちを犯す。 The goverment should not force everithing as benefit to the citizen. Government also make mistakes.
--->
+2. 全てを福利だと国民に押し付けてはいけない。政府も過ちを犯す。 The goverment should not force everithing as benefit to the citizen. Government also make mistakes.
+
